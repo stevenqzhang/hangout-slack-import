@@ -24,17 +24,14 @@ with args.output as csvfile:
 
             for y in x["conversation_state"]["event"]:
                 timestamp = int(y["timestamp"]) / 1000000
-                username = participants[y["sender_id"]["chat_id"]] if y["sender_id"][
-                                                                          "chat_id"] in participants else "unknown"
+                username = participants[y["sender_id"]["chat_id"]] if y["sender_id"]["chat_id"] in participants else "unknown"
 
                 if y["event_type"] == u'REGULAR_CHAT_MESSAGE':
                     if "segment" in y["chat_message"]["message_content"]:
                         text = y["chat_message"]["message_content"]["segment"][0]["text"]
                     else:
                         text = \
-                            y["chat_message"]["message_content"]["attachment"][0]["embed_item"][
-                                "embeds.PlusPhoto.plus_photo"][
-                                "url"]
+                            y["chat_message"]["message_content"]["attachment"][0]["embed_item"]["embeds.PlusPhoto.plus_photo"]["url"]
                     #if username == "unknown":
                     #    print timestamp, channel, y["sender_id"]["chat_id"], text,
                     print timestamp, args.channel, username, text
