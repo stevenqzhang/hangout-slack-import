@@ -13,6 +13,23 @@ def is_name(string):
     else:
         return False
 
+#wrapper class for names
+class UserNames:
+    def __init__(self, all_names):
+        self.all_names = all_names
+        self.canonical_name = "unknown"
+
+    def __repr__(self):
+        return "<Canonical name: " + self.canonical_name + "; all names: " + str(self.all_names) + ">"
+
+    # generates canonical name by finding name
+    def generateCanonicalName(self):
+        for name in self.all_names:
+            if is_name(name):
+                self.canonical_name = name
+
+
+
 def main():
     DEBUG = False
 
@@ -29,10 +46,10 @@ def main():
     #hack by looking at google plus
     #Todo make this lookup using API https://developers.google.com/apis-explorer/#p/plus/v1/plus.people.get
     uniq_users = {}
-    uniq_users[105790549405625095128] = "Sam Tzou"
-    uniq_users[114788163999803911886] = "Tracy Zhang"
-    uniq_users[109207454791961290004] = "Philip Zhang"
-    uniq_users[113062463581502975242] = "Steven Zhang"
+    uniq_users[105790549405625095128] = UserNames({"Sam Tzou"})
+    uniq_users[114788163999803911886] = UserNames({"Tracy Zhang"})
+    uniq_users[109207454791961290004] = UserNames({"Philip Zhang"})
+    uniq_users[113062463581502975242] = UserNames({"Steven Zhang"})
 
 
     with args.output as csvfile:
@@ -51,9 +68,7 @@ def main():
                 try:
                     # generate a table of participant Ids and phone numbers
                     if gaia_id in uniq_users:
-                        uniq_users[gaia_id] += "___" + p["fallback_name"]
-                    else:
-                        uniq_users[gaia_id] = p["fallback_name"]
+                        uniq_users[gaia_id].add(p["fallback_name"])
                 except KeyError:
                     print "unknown fallback name for: " + str(p)
 
