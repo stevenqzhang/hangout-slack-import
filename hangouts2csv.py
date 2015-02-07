@@ -47,7 +47,13 @@ class UserNamesAndNumbers:
                 self.numbers.add(UserNamesAndNumbers.formatNumber(name))
             except:
                 pass
-        self.canonical_number = min(self.numbers)
+        try:
+            self.canonical_number = min(self.numbers)
+        except ValueError as inst:
+            # we expect empty seqeuence if has no number
+            if (inst.message != "min() arg is an empty sequence"):
+                print inst.message
+                raise ValueError("some other value error besides excepted")
 
     def getCanonicalNumber(self):
         self.generateNumbers()
@@ -109,8 +115,10 @@ def main():
             for p in conv["conversation_state"]["conversation"]["participant_data"]:
                 current_chat_id = long(p["id"]["chat_id"])
                 try:
+                    #test for keyerrors
+                    p["fallback_name"]
                     if current_chat_id in uniq_users:
-                        uniq_users[current_chat_id].all_names.add(p["fallback_name"])
+                        uniq_users[current_chat_id].all_names_and_numbers.add(p["fallback_name"])
                     else:
                         uniq_users[current_chat_id] = UserNamesAndNumbers({p["fallback_name"]})
 
@@ -172,9 +180,12 @@ def main():
         #write to csv
         for iter_chat_id in data:
             for row in data[iter_chat_id]:
-                username = uniq_users[row.chat_id].getCanonicalName
-                hangoutswriter.writerow()
-
+                hangoutswriter.writerow([row.timestamp_formatted,
+                                         row.chat_id,
+                                         uniq_users[row.chat_id].getCanonicalNameOrNumber(),   #lookup table essentially
+                                         uniq_users[row.chat_id].all_names_and_numbers,
+                                         row.event_type,
+                                         row.text])
 
 if __name__ == "__main__":
     main()
