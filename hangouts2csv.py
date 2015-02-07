@@ -23,6 +23,7 @@ class UserNamesAndNumbers:
         self.all_names_and_numbers = all_names_and_numbers
         self.canonical_name = "unknown"
         self.numbers = set()
+        #todo use globals for the unknowns
         self.canonical_number = "unknown_number"
 
     def __repr__(self):
@@ -47,6 +48,17 @@ class UserNamesAndNumbers:
             except:
                 pass
         self.canonical_number = min(self.numbers)
+
+    def getCanonicalNumber(self):
+        self.generateNumbers()
+        return self.canonical_number
+
+    # if no canonical name exists, then canonical number
+    def getCanonicalNameOrNumber(self):
+        canonicalName = self.getCanonicalName()
+        if (canonicalName != "unknown"):
+            return canonicalName
+        return self.getCanonicalNumber()
 
 
     @staticmethod

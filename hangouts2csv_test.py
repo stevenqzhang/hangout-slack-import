@@ -27,5 +27,14 @@ def test_generateNumbers_yesNumber():
     n1.generateNumbers()
     assert n1.canonical_number == u"+1231231234"
 
+def test_getCanonicalNameOrNumber():
+    n1 = UserNamesAndNumbers({"1231231234", "name", "231231 not a number or name"})
+    assert n1.getCanonicalNameOrNumber() == "name"
+
+    n2 = UserNamesAndNumbers({"1231231234", "231231 not a number or name"})
+    assert n2.getCanonicalNameOrNumber() == u"+1231231234"
+
+
 if __name__ == '__main__':
+    # for pycharm debugging
     test_generateNumbers_yesNumber()
