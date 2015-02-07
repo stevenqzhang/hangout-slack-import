@@ -1,46 +1,99 @@
 import json
 import csv
 import argparse
+import datetime
+from pytz import timezone
+
+DEBUG = False
 
 parser = argparse.ArgumentParser(description='Parse your Google data archives of Hangout into CSV for Slack import')
 parser.add_argument('-i', '--input', type=file, required=True, help='Hangout json file', metavar='<Hangouts.json>')
 parser.add_argument('-o', '--output', type=argparse.FileType('wb'), required=True, help='CSV output file', metavar='<hangouts.csv>')
-parser.add_argument('-cid', '--conversation_id', required=True, metavar='<KYJA4kuoMFTyYCYXNzPpEsAnD4>')
-parser.add_argument('-ch', '--channel', required=True, metavar='<hangout>')
 
 args = parser.parse_args()
 print args.input
 
 jsonObj = json.load(args.input)
 
+
+#hack by looking at google plus
+#Todo make this lookup using API https://developers.google.com/apis-explorer/#p/plus/v1/plus.people.get
+uniq_users = {}
+uniq_users[105790549405625095128] = "Sam Tzou"
+uniq_users[114788163999803911886] = "Tracy Zhang"
+uniq_users[109207454791961290004] = "Philip Zhang"
+uniq_users[113062463581502975242] = "Steven Zhang"
+
+
 with args.output as csvfile:
     hangoutswriter = csv.writer(csvfile)
 
-    for x in jsonObj["conversation_state"]:
-        if x["conversation_id"]["id"] == args.conversation_id:
-            participants = {}
-            for p in x["conversation_state"]["conversation"]["participant_data"]:
-                participants[p["id"]["chat_id"]] = p["fallback_name"]
 
-            for y in x["conversation_state"]["event"]:
-                timestamp = int(y["timestamp"]) / 1000000
-                username = participants[y["sender_id"]["chat_id"]] if y["sender_id"]["chat_id"] in participants else "unknown"
+    #debug
+    uniq_event_types = set()
+    unknown_gaia_ids = set()
+1
 
-                if y["event_type"] == u'REGULAR_CHAT_MESSAGE':
-                    if "segment" in y["chat_message"]["message_content"]:
-                        text = y["chat_message"]["message_content"]["segment"][0]["text"]
-                    else:
-                        text = \
-                            y["chat_message"]["message_content"]["attachment"][0]["embed_item"]["embeds.PlusPhoto.plus_photo"]["url"]
-                    #if username == "unknown":
-                    #    print timestamp, channel, y["sender_id"]["chat_id"], text,
-                    print timestamp, args.channel, username, text
-                    hangoutswriter.writerow([timestamp, args.channel, username, text.encode('utf-8')])
+    pacific = timezone('US/Pacific')
 
+    for conv in jsonObj["conversation_state"]:
+        for p in conv["conversation_state"]["conversation"]["participant_data"]:
+            gaia_id = p["id"]["chat_id"]
+            try:
+                # generate a table of participant Ids and phone numbers
+                if gaia_id in uniq_users:
+                    uniq_users[gaia_id] += "___" + p["fallback_name"]
                 else:
-                    # HANGOUT_EVENT
-                    # ADD_USER
-                    # RENAME_CONVERSATION
-                    # REMOVE_USER
-                    # print y["event_type"]
-                    pass
+                    uniq_users[gaia_id] = p["fallback_name"]
+            except KeyError:
+                print "unknown fallback name for: " + str(p)
+
+        for event in conv["conversation_state"]["event"]:
+            timestamp = int(event["timestamp"]) / 1000000
+
+            #TODO parameter
+            timestamp_formatted = pacific.localize(datetime.datetime.fromtimestamp(timestamp))\
+                .strftime('%Y-%m-%d %H:%M:%S')
+
+            username = uniq_users[event["sender_id"]["chat_id"]] if event["sender_id"]["chat_id"] in uniq_users else "unknown"
+
+            # only select
+            if ((event["event_type"] == u'REGULAR_CHAT_MESSAGE') or (event["event_type"] == u'SMS')):
+                if "segment" in event["chat_message"]["message_content"]:
+                    text = event["chat_message"]["message_content"]["segment"][0]["text"]
+                else:
+                    text = \
+                        event["chat_message"]["message_content"]["attachment"][0]["embed_item"]["embeds.PlusPhoto.plus_photo"]["url"]
+                if username == "unknown":
+                    if(DEBUG):
+                        print "=== =========unknown user with gaiaid: \n",
+                        print timestamp_formatted, event["sender_id"]["chat_id"], text, "\n"
+                    unknown_gaia_ids.add(event["sender_id"]["chat_id"])
+
+                #TODO catch these exceptions
+
+                try:
+                    if(DEBUG):
+                        print timestamp_formatted, username, text
+
+                    hangoutswriter.writerow([timestamp_formatted,
+                                         username,
+                                         event["event_type"],
+                                         text.encode('utf-8')])
+                except UnicodeEncodeError:
+                    print "=========problem with username or text- unicode error========= \n",
+                    print timestamp_formatted, username, text, "\n"
+
+
+            # otherwise skip
+            else:
+                # HANGOUT_EVENT
+                # ADD_USER
+                # RENAME_CONVERSATION
+                # REMOVE_USER
+                uniq_event_types.add(event["event_type"])
+
+
+    print "all non-event conversations: " + str(uniq_event_types)
+    print "all unknown gaiaIds: " + str(unknown_gaia_ids)
+    print "all users" + str(uniq_users)
