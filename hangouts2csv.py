@@ -4,6 +4,7 @@ import argparse
 import datetime
 from pytz import timezone
 import re
+from collections import defaultdict
 
 # returns true if string is a name
 def is_name(string):
@@ -28,9 +29,18 @@ class UserNames:
             if is_name(name):
                 self.canonical_name = name
 
+    #getter with logic
+    def getCanonicalName(self):
+        self.generateCanonicalName()
+        return self.canonical_name
+
+
 
 
 def main():
+    #organize data by person
+    data = defaultdict(list)
+
     DEBUG = False
 
     parser = argparse.ArgumentParser(description='Parse your Google data archives of Hangout into CSV for Slack import')
@@ -54,6 +64,7 @@ def main():
 
     with args.output as csvfile:
         hangoutswriter = csv.writer(csvfile)
+        hangoutswriter.writerow(["Timestamp", "User ChatID", "Canonical name", "all names", "Type", "text"])
 
 
         #debug
@@ -64,11 +75,14 @@ def main():
 
         for conv in jsonObj["conversation_state"]:
             for p in conv["conversation_state"]["conversation"]["participant_data"]:
-                gaia_id = p["id"]["chat_id"]
+                current_chat_id = long(p["id"]["chat_id"])
                 try:
                     # generate a table of participant Ids and phone numbers
-                    if gaia_id in uniq_users:
-                        uniq_users[gaia_id].add(p["fallback_name"])
+                    if current_chat_id in uniq_users:
+                        uniq_users[current_chat_id].all_names.add(p["fallback_name"])
+                    else:
+                        uniq_users[current_chat_id]=UserNames({p["fallback_name"]})
+
                 except KeyError:
                     print "unknown fallback name for: " + str(p)
 
@@ -79,34 +93,34 @@ def main():
                 timestamp_formatted = pacific.localize(datetime.datetime.fromtimestamp(timestamp))\
                     .strftime('%Y-%m-%d %H:%M:%S')
 
-                username = uniq_users[event["sender_id"]["chat_id"]] if event["sender_id"]["chat_id"] in uniq_users else "unknown"
+                #name
+                current_chat_id = long(event["sender_id"]["chat_id"])
 
-                # only select
+                username = uniq_users[current_chat_id].getCanonicalName() if current_chat_id in uniq_users else "null"
+
+                # event
                 if ((event["event_type"] == u'REGULAR_CHAT_MESSAGE') or (event["event_type"] == u'SMS')):
                     if "segment" in event["chat_message"]["message_content"]:
                         text = event["chat_message"]["message_content"]["segment"][0]["text"]
                     else:
                         text = \
                             event["chat_message"]["message_content"]["attachment"][0]["embed_item"]["embeds.PlusPhoto.plus_photo"]["url"]
-                    if username == "unknown":
-                        if(DEBUG):
-                            print "=== =========unknown user with gaiaid: \n",
-                            print timestamp_formatted, event["sender_id"]["chat_id"], text, "\n"
-                        unknown_gaia_ids.add(event["sender_id"]["chat_id"])
 
                     #TODO catch these exceptions
 
                     try:
                         if(DEBUG):
                             print timestamp_formatted, username, text
-
-                        hangoutswriter.writerow([timestamp_formatted,
+                        data[current_chat_id].append([timestamp_formatted,
+                                             current_chat_id,
                                              username,
+                                             uniq_users[current_chat_id].all_names,
                                              event["event_type"],
                                              text.encode('utf-8')])
+
                     except UnicodeEncodeError:
                         print "=========problem with username or text- unicode error========= \n",
-                        print timestamp_formatted, username, text, "\n"
+                        print timestamp_formatted, current_chat_id, username, uniq_users[current_chat_id], uniq_users[current_chat_id].all_names, "\n"
 
 
                 # otherwise skip
@@ -121,6 +135,11 @@ def main():
         print "all non-event conversations: " + str(uniq_event_types)
         print "all unknown gaiaIds: " + str(unknown_gaia_ids)
         print "all users" + str(uniq_users)
+
+        #write to csv
+        for iter_chat_id in data:
+            for row in data[iter_chat_id]:
+                hangoutswriter.writerow(row)
 
 if __name__ == "__main__":
     main()
