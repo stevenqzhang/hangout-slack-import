@@ -23,7 +23,7 @@ def main():
     xls = read_contacts(args.input)
     xls.to_csv(args.output, encoding='utf-8')
 
-
+# don't want to deal with imports, compied to main file
 def read_contacts(file):
     xls = pd.read_excel(file, 'Sheet 1')
     xls.columns = ['Name', 'Phone raw']

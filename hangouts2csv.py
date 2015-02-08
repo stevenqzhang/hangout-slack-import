@@ -7,6 +7,24 @@ import re
 from collections import defaultdict
 from bunch import *
 import phonenumbers
+import pandas as pd
+
+# reads optional contacts file
+def read_parsed_contacts(file):
+    xls = pd.read_csv(file)
+
+def read_contacts(file):
+    xls = pd.read_excel(file, 'Sheet 1')
+    xls.columns = ['Name', 'Phone raw']
+    length = len(xls['Name'])
+    xls['Phone parsed'] = pd.Series()
+
+    for i, row in xls.iterrows():
+        try:
+            xls.ix[i, 'Phone parsed'] = str(UserNamesAndNumbers.formatNumber(row["Phone raw"]))
+        except phonenumbers.phonenumberutil.NumberParseException:
+            pass
+    return xls
 
 # returns true if string is a name
 def is_name(string):
@@ -83,6 +101,7 @@ def main():
     parser.add_argument('-i', '--input', type=file, required=True, help='Hangout json file', metavar='<Hangouts.json>')
     parser.add_argument('-o', '--output', type=argparse.FileType('wb'), required=True, help='CSV output file',
                         metavar='<hangouts.csv>')
+    parser.add_argument('-c', '--contacts', type=argparse.FileType('wb'), required=False, help = 'contacts list')
 
     args = parser.parse_args()
     print args.input
@@ -177,6 +196,9 @@ def main():
         print "all unknown gaiaIds: " + str(unknown_gaia_ids)
         print "all users" + str(uniq_users)
 
+        if(args.contacts):
+            merge_contacts(uniq_users, read_contacts(args.contacts))
+
         #write to csv
         for iter_chat_id in data:
             for row in data[iter_chat_id]:
@@ -186,6 +208,9 @@ def main():
                                          uniq_users[row.chat_id].all_names_and_numbers,
                                          row.event_type,
                                          row.text])
+
+def merge_contacts(uniq_users, contacts):
+    pass
 
 if __name__ == "__main__":
     main()
