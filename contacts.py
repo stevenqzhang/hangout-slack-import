@@ -20,7 +20,12 @@ def main():
     # raw_csvfile = open(args.input, 'rb')
     # data = pd.read_csv(raw_csvfile, error_bad_lines=Fallsse)
     # data
-    xls = pd.read_excel(args.input, 'Sheet 1')
+    xls = read_contacts(args.input)
+    xls.to_csv(args.output, encoding='utf-8')
+
+
+def read_contacts(file):
+    xls = pd.read_excel(file, 'Sheet 1')
     xls.columns = ['Name', 'Phone raw']
     length = len(xls['Name'])
     xls['Phone parsed'] = pd.Series()
@@ -30,8 +35,7 @@ def main():
             xls.ix[i, 'Phone parsed'] = str(UserNamesAndNumbers.formatNumber(row["Phone raw"]))
         except phonenumbers.phonenumberutil.NumberParseException:
             pass
-
-    xls.to_csv(args.output, encoding='utf-8')
+    return xls
 
 
 if __name__ == "__main__":
