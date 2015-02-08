@@ -7,6 +7,7 @@ import argparse
 import phonenumbers
 import codecs
 import pandas as pd
+from hangouts2csv import is_name, UserNamesAndNumbers
 
 
 def main():
@@ -17,10 +18,20 @@ def main():
     args = parser.parse_args()
 
     # raw_csvfile = open(args.input, 'rb')
-    # data = pd.read_csv(raw_csvfile, error_bad_lines=False)
+    # data = pd.read_csv(raw_csvfile, error_bad_lines=Fallsse)
     # data
     xls = pd.read_excel(args.input, 'Sheet 1')
-    xls
+    xls.columns = ['Name', 'Phone raw']
+    length = len(xls['Name'])
+    xls['Phone parsed'] = pd.Series()
+
+    for i, row in xls.iterrows():
+        try:
+            xls.ix[i, 'Phone parsed'] = str(UserNamesAndNumbers.formatNumber(row["Phone raw"]))
+        except phonenumbers.phonenumberutil.NumberParseException:
+            pass
+
+    xls.to_csv(args.output, encoding='utf-8')
 
 
 if __name__ == "__main__":
