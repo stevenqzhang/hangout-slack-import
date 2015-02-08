@@ -66,7 +66,7 @@ class UserNamesAndNumbers:
             return canonicalName
         return self.getCanonicalNumber()
 
-
+    #returns formatter US number. else raise exception
     @staticmethod
     def formatNumber(string):
         z = phonenumbers.parse(string, region="US")  #google voice SMS only in US/Canada anyways
