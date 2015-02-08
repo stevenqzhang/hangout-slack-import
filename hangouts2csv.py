@@ -14,7 +14,6 @@ def read_parsed_contacts():
     xls = pd.read_pickle('contacts.pickle')
     return xls
 
-
 # returns true if string is a name
 def is_name(string):
     m = re.match(r"([a-z]|[A-Z]|\s)*", string)
@@ -38,9 +37,10 @@ class UserNamesAndNumbers:
 
     # generates canonical name by finding name
     def generateCanonicalName(self):
-        for name in self.all_names_and_numbers:
-            if is_name(name):
-                self.canonical_name = name
+        if self.canonical_name == "unknown":
+            for name in self.all_names_and_numbers:
+                if is_name(name):
+                    self.canonical_name = name
 
     #getter with logic
     def getCanonicalName(self):
@@ -63,7 +63,8 @@ class UserNamesAndNumbers:
                 raise ValueError("some other value error besides excepted")
 
     def getCanonicalNumber(self):
-        self.generateNumbers()
+        if self.canonical_number == "unknown_number":
+            self.generateNumbers()
         return self.canonical_number
 
     # if no canonical name exists, then canonical number
@@ -107,7 +108,21 @@ def main():
 
     with args.output as csvfile:
         hangoutswriter = csv.writer(csvfile)
-        hangoutswriter.writerow(["Timestamp", "User ChatID", "Canonical name", "all names", "Type", "text"])
+        hangoutswriter.writerow([
+            "Conversation ID",
+            "Timestamp",
+            "Event type",
+            "Sender ID",
+            "Sender Canonical name",
+            "Sender all names",
+            "Receiver ID",
+            "Receiver Canonical name",
+            "Receiver all names",
+            "Other person ID",
+            "Other person Canonical name",
+            "Other person all names",
+            "Direction",
+            "text"])
 
 
         #debug
@@ -116,21 +131,41 @@ def main():
 
         pacific = timezone('US/Pacific')
 
+        #iterate over each conversation
         for conv in jsonObj["conversation_state"]:
 
+            participant_data = conv["conversation_state"]["conversation"]["participant_data"]
+
+            # we only care to analyze 2-person conversations for now
+            if len(participant_data) != 2:
+                continue
+
+            all_two_participant_ids = []
+
             # look for accumulating names
-            for p in conv["conversation_state"]["conversation"]["participant_data"]:
+            for p in participant_data:
                 current_chat_id = long(p["id"]["chat_id"])
+                all_two_participant_ids.append(current_chat_id)
                 try:
                     #test for keyerrors
                     p["fallback_name"]
+
                     if current_chat_id in uniq_users:
                         uniq_users[current_chat_id].all_names_and_numbers.add(p["fallback_name"])
                     else:
                         uniq_users[current_chat_id] = UserNamesAndNumbers({p["fallback_name"]})
 
+
                 except KeyError:
                     print "unknown fallback name for: " + str(p)
+
+            # get lookup tables ready before conversation loop
+            if len(all_two_participant_ids) != 2:
+                raise Exception("All participant ids should be 2, we checked for this already!")
+            sender_receiver_relationship = {}
+            sender_receiver_relationship[all_two_participant_ids[0]] = all_two_participant_ids[1]
+            sender_receiver_relationship[all_two_participant_ids[1]] = all_two_participant_ids[0]
+
 
             #look for accumulating conversations
             for event in conv["conversation_state"]["event"]:
@@ -159,12 +194,26 @@ def main():
                             print timestamp_formatted, current_chat_id, text
 
                         row = Bunch()
+                        row.conversation_id = conv["conversation_id"]["id"]
+                        row.timestamp = timestamp
                         row.timestamp_formatted = timestamp_formatted
-                        row.chat_id = current_chat_id
+                        row.sender_id = current_chat_id
+                        row.receiver_id = sender_receiver_relationship[row.sender_id]
                         row.event_type = event["event_type"]
                         row.text = text.encode('utf-8')
 
-                        data[current_chat_id].append(row)
+                        # stuff I need for analysis
+                        if(row.sender_id == 113062463581502975242L):
+                            row.direction = u'outbound'
+                            row.other_person_id = row.receiver_id
+                        elif row.receiver_id == 113062463581502975242L:
+                            row.direction = u'inbound'
+                            row.other_person_id = row.sender_id
+                        else:
+                            raise Exception("Uh oh, not inbound nor outbound")
+
+                        #sort by conversationid
+                        data[row.conversation_id].append(row)
 
                     except UnicodeEncodeError:
                         print "=========problem with username or text- unicode error========= \n",
@@ -184,23 +233,41 @@ def main():
         print "all unknown gaiaIds: " + str(unknown_gaia_ids)
         print "all users" + str(uniq_users)
 
-        # merge in google contacts
+        #sort data by row
+
+        # merge in google contacts to list of users
         uniq_users = merge_contacts(uniq_users, read_parsed_contacts())
 
         #write to csv
-        for iter_chat_id in data:
-            for row in data[iter_chat_id]:
-                hangoutswriter.writerow([row.timestamp_formatted,
-                                         row.chat_id,
-                                         uniq_users[row.chat_id].getCanonicalNameOrNumber(),   #lookup table essentially
-                                         uniq_users[row.chat_id].all_names_and_numbers,
+        for conv_id in data:
+            for row in data[conv_id]:
+                hangoutswriter.writerow([row.conversation_id,
+                                         row.timestamp_formatted,
                                          row.event_type,
+
+                                         #sender
+                                         row.sender_id,
+                                         uniq_users[row.sender_id].getCanonicalNameOrNumber(),
+                                         uniq_users[row.sender_id].all_names_and_numbers,
+
+                                         #receiver
+                                         row.receiver_id,
+                                         uniq_users[row.receiver_id].getCanonicalNameOrNumber(),
+                                         uniq_users[row.receiver_id].all_names_and_numbers,
+
+                                         #totally redundant, but oh well- other person besides me
+                                         row.other_person_id,
+                                         uniq_users[row.other_person_id].getCanonicalNameOrNumber(),
+                                         uniq_users[row.other_person_id].all_names_and_numbers,
+                                         row.direction,
+
                                          row.text])
 
 def merge_contacts(uniq_users, contacts):
+    print "Merging in contacts (this could take a while)...."
     for key, user in uniq_users.items():
         num = user.getCanonicalNameOrNumber()
-        print "current user: " _ str(user)
+        print "current user: " + str(user)
         for i, row in contacts.iterrows():
             if (contacts.ix[i, 'Phone parsed'] == num):
                 user.canonical_name = contacts.ix[i, 'Name']
