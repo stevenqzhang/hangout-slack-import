@@ -16,10 +16,12 @@ def main():
                         metavar='<contacts.csv>')
     args = parser.parse_args()
 
-    raw_csvfile = open(args.input, 'rb')
-    csvfile = pd.read_csv(raw_csvfile)
+    # raw_csvfile = open(args.input, 'rb')
+    # data = pd.read_csv(raw_csvfile, error_bad_lines=False)
+    # data
+    xls = pd.read_excel(args.input, 'Sheet 1')
+    xls
 
-    foo
 
 if __name__ == "__main__":
     main()
