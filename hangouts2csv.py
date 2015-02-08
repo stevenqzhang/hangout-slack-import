@@ -10,21 +10,10 @@ import phonenumbers
 import pandas as pd
 
 # reads optional contacts file
-def read_parsed_contacts(file):
-    xls = pd.read_csv(file)
-
-def read_contacts(file):
-    xls = pd.read_excel(file, 'Sheet 1')
-    xls.columns = ['Name', 'Phone raw']
-    length = len(xls['Name'])
-    xls['Phone parsed'] = pd.Series()
-
-    for i, row in xls.iterrows():
-        try:
-            xls.ix[i, 'Phone parsed'] = str(UserNamesAndNumbers.formatNumber(row["Phone raw"]))
-        except phonenumbers.phonenumberutil.NumberParseException:
-            pass
+def read_parsed_contacts():
+    xls = pd.read_pickle('contacts.pickle')
     return xls
+
 
 # returns true if string is a name
 def is_name(string):
@@ -101,7 +90,6 @@ def main():
     parser.add_argument('-i', '--input', type=file, required=True, help='Hangout json file', metavar='<Hangouts.json>')
     parser.add_argument('-o', '--output', type=argparse.FileType('wb'), required=True, help='CSV output file',
                         metavar='<hangouts.csv>')
-    parser.add_argument('-c', '--contacts', type=argparse.FileType('wb'), required=False, help = 'contacts list')
 
     args = parser.parse_args()
     print args.input
@@ -196,8 +184,8 @@ def main():
         print "all unknown gaiaIds: " + str(unknown_gaia_ids)
         print "all users" + str(uniq_users)
 
-        if(args.contacts):
-            merge_contacts(uniq_users, read_contacts(args.contacts))
+        # merge in google contacts
+        uniq_users = merge_contacts(uniq_users, read_parsed_contacts())
 
         #write to csv
         for iter_chat_id in data:
@@ -210,7 +198,15 @@ def main():
                                          row.text])
 
 def merge_contacts(uniq_users, contacts):
-    pass
+    for key, user in uniq_users.items():
+        num = user.getCanonicalNameOrNumber()
+        print "current user: " _ str(user)
+        for i, row in contacts.iterrows():
+            if (contacts.ix[i, 'Phone parsed'] == num):
+                user.canonical_name = contacts.ix[i, 'Name']
+    return uniq_users
+
+
 
 if __name__ == "__main__":
     main()

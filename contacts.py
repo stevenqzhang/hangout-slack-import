@@ -22,6 +22,8 @@ def main():
     # data
     xls = read_contacts(args.input)
     xls.to_csv(args.output, encoding='utf-8')
+    xls.to_pickle('contacts.pickle')
+
 
 # don't want to deal with imports, compied to main file
 def read_contacts(file):
