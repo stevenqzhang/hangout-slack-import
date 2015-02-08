@@ -23,6 +23,32 @@ def is_name(string):
         return False
 
 
+# calculate metdata about responsiveness- the transition direction and time
+def calc_metadata(msgs):
+    # sort messages from earliest to latests
+    msgs = sorted(msgs, key = lambda x: x.timestamp)
+
+    for i, m in enumerate(msgs):
+        if i > 0:
+            m.transition = m.direction + last_m.direction
+            m.transition_time = m.timestamp - last_m.timestamp
+
+            #check order
+            if m.transition_time <= 0:
+                raise Exception("not ordered")
+
+            msgs[i] = m
+        else:
+            m.transition = "Null"
+            m.transition_time = "Null"
+
+
+        last_m = m
+    return msgs
+
+
+
+
 # wrapper class for names
 class UserNamesAndNumbers:
     def __init__(self, all_names_and_numbers):
@@ -112,16 +138,23 @@ def main():
             "Conversation ID",
             "Timestamp",
             "Event type",
+
+            "transition",
+            "transition time (microsec)",
+
             "Sender ID",
             "Sender Canonical name",
             "Sender all names",
+
             "Receiver ID",
             "Receiver Canonical name",
             "Receiver all names",
+
             "Other person ID",
             "Other person Canonical name",
             "Other person all names",
             "Direction",
+
             "text"])
 
 
@@ -169,10 +202,10 @@ def main():
 
             #look for accumulating conversations
             for event in conv["conversation_state"]["event"]:
-                timestamp = int(event["timestamp"]) / 1000000
+                timestamp = int(event["timestamp"])
 
                 #TODO parameter
-                timestamp_formatted = pacific.localize(datetime.datetime.fromtimestamp(timestamp)) \
+                timestamp_formatted = pacific.localize(datetime.datetime.fromtimestamp(timestamp/ 1000000)) \
                     .strftime('%Y-%m-%d %H:%M:%S')
 
                 #id is real canonical name
@@ -204,10 +237,10 @@ def main():
 
                         # stuff I need for analysis
                         if(row.sender_id == 113062463581502975242L):
-                            row.direction = u'outbound'
+                            row.direction = 'outbound'
                             row.other_person_id = row.receiver_id
                         elif row.receiver_id == 113062463581502975242L:
-                            row.direction = u'inbound'
+                            row.direction = 'inbound'
                             row.other_person_id = row.sender_id
                         else:
                             raise Exception("Uh oh, not inbound nor outbound")
@@ -229,6 +262,13 @@ def main():
                     # REMOVE_USER
                     uniq_event_types.add(event["event_type"])
 
+            # sort through event
+            print "sorting through conversation: " + str(data[row.conversation_id])
+
+            #makes sure that conversations are recorded and not just all voicemail events
+            if(data[row.conversation_id]):
+                data[row.conversation_id] = calc_metadata(data[row.conversation_id])
+
         print "all non-event conversations: " + str(uniq_event_types)
         print "all unknown gaiaIds: " + str(unknown_gaia_ids)
         print "all users" + str(uniq_users)
@@ -241,9 +281,15 @@ def main():
         #write to csv
         for conv_id in data:
             for row in data[conv_id]:
-                hangoutswriter.writerow([row.conversation_id,
+                hangoutswriter.writerow([
+                                        # basic metadata
+                                         row.conversation_id,
                                          row.timestamp_formatted,
                                          row.event_type,
+
+                                         # responsiveness
+                                         row.transition,
+                                         row.transition_time,
 
                                          #sender
                                          row.sender_id,
@@ -264,7 +310,7 @@ def main():
                                          row.text])
 
 def merge_contacts(uniq_users, contacts):
-    print "Merging in contacts (this could take a while)...."
+    print "====Merging in contacts (this could take a while)...."
     for key, user in uniq_users.items():
         num = user.getCanonicalNameOrNumber()
         print "current user: " + str(user)
